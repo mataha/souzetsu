@@ -202,12 +202,13 @@ for /f "skip=4" %%e in ('"echo(prompt $E| "%ComSpec%" /d 2>nul"') do (
 ::: Prints the given error message to the "standard" error output stream,
 ::: then exits the program with the specified (likely unsuccessful) status code.
 :error (exit_code: number?, message: string?) > Abort
-    setlocal EnableDelayedExpansion
+    setlocal
 
     set "program=%~n0"
 
-    set "message=%~2" & if not "!message: =!"=="" (set "message=: !message!")
-    %$err% "%[red]%[%program% error]%[/red]%!message!"
+    set "message=%~2"
+    if defined message (set "message=: %message%")
+    %$err% "%[red]%[%program% error]%[/red]%%message%"
 
     endlocal & call :exit %1
 
