@@ -46,7 +46,6 @@ for /f "skip=4" %%e in ('"echo(prompt $E| "%ComSpec%" /d 2>nul"') do (
     setlocal EnableExtensions & (if "%~1"=="" (exit /b 2)) & (set \n=^^^
 %= This is supposed to be empty! Removing that will cause cryptic errors! =%
 )
-
     ::: Avoid handle duplication during redirection to the `CONOUT$` device
     set "stream=" & if not "%~2"=="" if "%~2" neq "1" (set "stream=^>^&%~2")
 
@@ -161,24 +160,39 @@ for /f "skip=4" %%e in ('"echo(prompt $E| "%ComSpec%" /d 2>nul"') do (
     ::: directory (`%__APPDIR__%`) and in the current directory (`%__CD__%`) if
     ::: `NeedCurrentDirectoryForExePathW(ExeName)` is true before checking the
     ::: system directories, thus try to avoid executing unqualified `cmd.exe`.
+    ::: See also: https://learn.microsoft.com/en-us/windows/win32/api/processenv/nf-processenv-needcurrentdirectoryforexepathw
     if not defined ComSpec (set "ComSpec=%SystemRoot%\System32\cmd.exe")
 
-    (goto & goto & call :is_label_context "%%~0") 2>nul && (
-        call :exit %exit_code%
-    ) || (call :is_label_context :is_label_context) 2>nul && (
-        exit /b %exit_code%
-    ) || (
-        "%ComSpec%" /d /c @exit /b %exit_code%
-    ) & if defined CMD_TITLE (
-        title %CMD_TITLE%
-    ) else (
-        title %CD%
+    2>nul (
+        (goto) & (goto)
+
+        call :is_label_context "%%~0" && (
+            call :exit %exit_code%
+        ) || (
+            call :is_batch_context && (
+                exit /b %exit_code%
+            ) || (
+                "%ComSpec%" /d /c @exit /b %exit_code%
+
+                @rem Do our best in restoring the default window title - hope
+                @rem that some third-party machinery has it hoarded somewhere
+                if defined TITLE (
+                    title %TITLE%
+                ) else (
+                    title %CD%
+                )
+            )
+        )
     )
+
+    :is_batch_context () > Result
+        exit /b 0 "If this is callable, then we're operating in Batch context"
 
     :is_label_context (context: string) > Result
         setlocal & (if "%~1"=="" (exit /b 2))
 
         set "context=%~1"
+        ::: Hopefully that'll be faster than `call set` in a cached code block
         if "%context:~0,1%"==":" (set "exit_code=0") else (set "exit_code=1")
 
         endlocal & exit /b %exit_code%
