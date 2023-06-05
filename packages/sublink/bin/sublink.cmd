@@ -19,7 +19,7 @@
 
 @setlocal DisableDelayedExpansion & if not defined DEBUG (echo off)
 
-for /f "skip=4" %%e in ('"echo(prompt $E| "%ComSpec%" /d 2>nul"') do (
+for /f "skip=4" %%e in ('"echo(prompt $E| "%ComSpec%" /d /q 2>nul"') do (
     for /f "tokens=4,6 delims=[.] " %%t in ('"ver"') do (
         set "[red]="         & set "[/red]="
         set "[b]="           & set "[/b]="
@@ -201,14 +201,22 @@ for /f "skip=4" %%e in ('"echo(prompt $E| "%ComSpec%" /d 2>nul"') do (
 
 ::: Prints the given error message to the "standard" error output stream,
 ::: then exits the program with the specified (likely unsuccessful) status code.
-:error (exit_code: number?, message: string?) > Abort
+:error (exit_code: number?, message: string?, arguments: string...) > Abort
     setlocal
 
     set "program=%~n0"
 
     set "message=%~2"
     if defined message (set "message=: %message%")
-    %$err% "%[red]%[%program% error]%[/red]%%message%"
+
+    :error_unpack & >nul set "arguments="
+        if not "%~3"=="" (
+            set "arguments=%arguments% %~3"
+            shift /3
+            goto :error_unpack
+        )
+
+    %$err% "%[red]%[%program% error]%[/red]%%message%%arguments%"
 
     endlocal & call :exit %1
 
@@ -237,6 +245,9 @@ for /f "skip=4" %%e in ('"echo(prompt $E| "%ComSpec%" /d 2>nul"') do (
     endlocal & call :exit 0
 
 @:main
+    ::: Can't use parentheses/quotes here - `%*` may contain hazardous characters
+    if not "%~2"=="" call :error 2 "invalid arguments:" %*
+
     ::: Default installation - can be overridden via global environment variable
     ::: This doesn't necessarily have to target Sublime Text - Merge is fine too
     if not defined SUBLIME_PATH (set "sublime_path=%APPDATA%\Sublime Text")
@@ -251,9 +262,7 @@ for /f "skip=4" %%e in ('"echo(prompt $E| "%ComSpec%" /d 2>nul"') do (
         call :error 1 "SUBLIME_PATH does not point to a Sublime data directory: '%sublime_path%'"
     )
 
-    if not "%~2"=="" (
-        call :error 2 "invalid arguments: '%*'"
-    ) else if "%~1"=="/?" (
+    if "%~1"=="/?" (
         call :usage
     ) else if "%~1"=="-h" (
         call :usage
